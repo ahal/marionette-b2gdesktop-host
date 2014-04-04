@@ -13,6 +13,7 @@
   ],
   "dependencies": {
     "debug": "*",
+    "corredor-js-client": "*",
     "mozilla-runner": "~0.3.0"
   },
   "devDependencies": {

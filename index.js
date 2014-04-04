@@ -1,27 +1,8 @@
 var fsPath = require('path'),
     fs = require('fs'),
-    mozrunner = require('mozilla-runner'),
-    spawn = require('./index').spawn,
-    debug = require('debug')('marionette-b2g-host'),
-    debugChild = require('debug')('b2g-desktop');
+    corredor = require('corredor-js-client');
 
 var DEFAULT_LOCATION = fsPath.join(process.cwd(), 'b2g');
-
-/**
- * Handles piping process details to debug.
- * @param {ChildProcess} process to watch.
- * @private
- */
-function debugProcess(process) {
-  function watchStream(type, stream) {
-    stream.on('data', function(buffer) {
-      debugChild(type, buffer.toString());
-    });
-  }
-
-  watchStream('stdout', process.stdout);
-  watchStream('stderr', process.stderr);
-}
 
 /**
  * Host interface for marionette-js-runner.
@@ -38,6 +19,8 @@ function Host(options) {
   //       cwd.
   this.options = options || {};
   this.options.runtime = this.options.runtime || DEFAULT_LOCATION;
+
+  this.runner = new corredor.ExclusivePair('ipc', '/tmp/corredor_worker');
 }
 
 /**
@@ -79,28 +62,17 @@ Host.prototype = {
     userOptions.profile = userOptions.profile || profile;
     userOptions.product = userOptions.product || 'b2g';
 
-    debug('start');
-    var self = this;
-    var target = self.options.runtime;
-
-    function run() {
-      debug('binary: ', target);
-      debug('profile: ', profile);
-      mozrunner.run(
-        target,
-        userOptions,
-        saveState
-      );
-    }
-
-    function saveState(err, process) {
-      if (err) return callback(err);
-      debugProcess(process);
-      self._process = process;
+    function done(data) {
       callback();
     }
 
-    run();
+    this.runner.registerAction('ready_start', done);
+    this.runner.sendData({'action': 'start_runner',
+                          'argv': userOptions.argv,
+                          'profile': userOptions.profile,
+                          'product': userOptions.product,
+                          'target': this.options.runtime,
+                          'url': userOptions.url});
   },
 
   /**
@@ -109,11 +81,26 @@ Host.prototype = {
    * @param {Function} callback [Error err].
    */
   stop: function(callback) {
-    debug('stop');
-    if (this._process) {
-      this._process.on('exit', callback);
-      this._process.kill();
+    function done(data) {
+      callback();
     }
+    this.runner.registerAction('ready_stop', done);
+    this.runner.sendData({'action': 'stop_runner'});
+  },
+
+  /**
+   * Shutdown the currently running host.
+   *
+   * @param {Function} callback [Error err].
+   */
+  shutdown: function(callback) {
+    var self = this;
+    function cleanup() {
+      self.runner.close();
+      callback();
+    }
+
+    this.stop(cleanup);
   }
 };
 
