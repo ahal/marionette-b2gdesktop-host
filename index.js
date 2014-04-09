@@ -20,7 +20,8 @@ function Host(options) {
   this.options = options || {};
   this.options.runtime = this.options.runtime || DEFAULT_LOCATION;
 
-  this.runner = new corredor.ExclusivePair('ipc', '/tmp/corredor_worker');
+  this.runner = new corredor.ExclusivePair();
+  this.runner.connect('ipc:///tmp/corredor_worker');
 }
 
 /**
@@ -67,12 +68,12 @@ Host.prototype = {
     }
 
     this.runner.registerAction('ready_start', done);
-    this.runner.sendData({'action': 'start_runner',
-                          'argv': userOptions.argv,
-                          'profile': userOptions.profile,
-                          'product': userOptions.product,
-                          'target': this.options.runtime,
-                          'url': userOptions.url});
+    this.runner.send({'action': 'start_runner',
+                      'argv': userOptions.argv,
+                      'profile': userOptions.profile,
+                      'product': userOptions.product,
+                      'target': this.options.runtime,
+                      'url': userOptions.url});
   },
 
   /**
@@ -85,7 +86,7 @@ Host.prototype = {
       callback();
     }
     this.runner.registerAction('ready_stop', done);
-    this.runner.sendData({'action': 'stop_runner'});
+    this.runner.send({'action': 'stop_runner'});
   },
 
   /**
